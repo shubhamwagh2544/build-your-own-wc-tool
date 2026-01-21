@@ -1,60 +1,86 @@
 #!/usr/bin/env node
 
-import fs from 'node:fs';
+import fs from 'fs';
 
 // parse cli arguments
 const args = process.argv.slice(2);
 
 if (args.length === 0) {
-    console.error("Usage: wc [-c|-l] [file]");
+    console.error("Usage: ccwc [-c|-l|-w] [file]");
     process.exit(1);
 }
 
 const option = args[0];
 const filePath = args[1];
 
-if (option !== "-c" && option !== "-l") {
-    console.error("Usage: ccwc [-c|-l] [file]");
+if (option !== "-c" && option !== "-l" && option !== "-w") {
+    console.error("Usage: ccwc [-c|-l|-w] [file]");
     process.exit(1);
 }
 
-// input stream
-let stream = filePath ? fs.createReadStream(filePath) : process.stdin;
+// resolve input stream
+const stream = filePath ? fs.createReadStream(filePath) : process.stdin;
 
-// process stream
+// process input stream
 let byteCount = 0;
 let lineCount = 0;
+let wordCount = 0;
 
-stream.on('data', (chunk) => {
-    console.log(chunk)  // <Buffer 48 65 6c 6c 6f 20 57 6f 72 6c 64 21 0a>
+let inWord = false;
+
+stream.on("data", (chunk) => {
+    // bytes
     byteCount += chunk.length;
-    if (option === '-l') {
+
+    // lines
+    if (option === "-l") {
         for (let i = 0; i < chunk.length; i++) {
-            if (chunk[i] === 10) {  // 10 is ASCII for '\n'
-                lineCount++;
-            }
+            if (chunk[i] === 10) lineCount++; // '\n'
         }
     }
 
-})
-stream.on('error', (err) => {
-    console.error('Unexpected Error: ', err.message)
-    process.exit(1)
-})
+    // words
+    if (option === "-w") {
+        // Convert chunk to string for whitespace detection.
+        const text = chunk.toString();
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+
+            // whitespace check (space, newline, tab, etc.)
+            const isWhitespace = /\s/.test(ch);
+
+            if (isWhitespace) {
+                inWord = false; // OFF
+            } else {
+                if (!inWord) {  // set T only if F
+                    wordCount++;
+                    inWord = true;  // ON
+                }
+            }
+        }
+    }
+});
+
+stream.on("error", (err) => {
+    console.error(err.message);
+    process.exit(1);
+});
 
 stream.on("end", () => {
     let result;
 
     if (option === "-c") {
         result = byteCount;
-    } else {
+    } else if (option === "-l") {
         result = lineCount;
+    } else {
+        result = wordCount;
     }
 
     if (filePath) {
         console.log(`${result} ${filePath}`);
-    }
-    else {
+    } else {
         console.log(result);
     }
 });
